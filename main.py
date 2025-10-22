@@ -73,8 +73,11 @@ def download_single(url, filetype, filepath, cookies=None):
             ydl.download(url)
             break
         except Exception as e:
-            print()
+            print(f"An error accured while downloading {retries +1} / {max_retries}")
+            print(e)
             retries += 1
+    if retries == max_retries:
+        exit(1)
     return filepath + str(ydl.extract_info(url, download=False).get("title"))+ ".mp3"
 
 def edit_metadata(filepath, artist=None, album=None, date=None, genre=None, title=None, playlist_index=None, thumbnail_path=None):

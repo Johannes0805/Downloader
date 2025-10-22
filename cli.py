@@ -39,7 +39,7 @@ def download():
 
             if edit == "Y":
                 title = input("Titel: ")
-                main.edit_metadata(filepath, artist, album, date, genre, title, playlist_indicator, thumbnail_path=thumbpath)
+                main.edit_metadata(rpath, artist, album, date, genre, title, playlist_indicator, thumbnail_path=thumbpath)
 
             if filetype == "audio":
                 main.delete_file(thumbpath)
@@ -67,4 +67,5 @@ def download():
 
         if filetype == "audio":
             main.delete_file(thumbpath)
+
 download()
