@@ -11,7 +11,16 @@ class Window(ct.CTk):
 
         self.columnconfigure(0, weight=1)
 
-        # Fragt nach dem Ausgabetyp
+        self.startscreen()
+
+        #self.to_gui_queue = Queue()
+        #self.to_worker_queue = Queue()
+
+        #self.check_queue()
+
+    def startscreen(self):
+        self.startframe = ct.CTkFrame(self)
+
         self.mpcheckbox = Mpcheckbox(self)
         self.mpcheckbox.grid(row=0, column=0, padx=10, pady=(10, 10), sticky="nswe")
 
@@ -23,11 +32,11 @@ class Window(ct.CTk):
         self.entry = Linkentry(self)
         self.entry.grid(row=2, column=0, padx=10, pady=(10, 10), sticky="nswe")
 
-        #self.to_gui_queue = Queue()
-        #self.to_worker_queue = Queue()
+    def delete_frame(self, frame):
+        frame.grid_forget()
 
-        #self.check_queue()
-
+    def start_download(self):
+        pass
 
 
 class Mpcheckbox(ct.CTkFrame):
@@ -55,7 +64,8 @@ class Mpcheckbox(ct.CTkFrame):
         elif mp4:
             return "mp4"
         else:
-            raise Exception
+            ct.CTkMessagebox(title="Fehler", message="Bitte alle Felder ausfüllen.")
+            return
 
 class Typecheckbox(ct.CTkFrame):
     # This class displays a checkbox allowing the user to select between playlists and single videos
@@ -92,10 +102,10 @@ class Linkentry(ct.CTkFrame):
         self.columnconfigure(0, weight=1)
         self.entry = ct.CTkEntry(self, placeholder_text="www.gibhierdeinlink.ein")
         self.entry.grid(row=0, column=0, padx=10, pady=(10,0), sticky="nswe")
-        self.entry.bind("<Return>", lambda e: self.on_submit())
+        self.entry.bind("<Return>", lambda e: self.master.start_download())
 
-    def on_submit(self):
-        self.master.handle_inputs()
+    #def on_submit(self):
+     #   pass
 
     def getentry(self):
         return self.entry.get()

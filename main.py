@@ -1,5 +1,4 @@
 import yt_dlp
-from yt_dlp.globals import postprocessors
 from mutagen.id3 import ID3, error, TIT2, TRCK, APIC, TALB, TPE1, TDRC, TCON
 from PIL import Image
 import os
