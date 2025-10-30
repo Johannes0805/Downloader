@@ -4,6 +4,3 @@
 
 This is just a simple downloader that can be used
 to download YouTube videos in audio or video format.
-
-
-Still WIP
