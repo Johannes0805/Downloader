@@ -1,5 +1,6 @@
 import yt_dlp
-from mutagen.id3 import ID3, error, TIT2, TRCK, APIC, TALB, TPE1, TDRC, TCON
+from mutagen.id3 import ID3, error, TIT2, TRCK, APIC, TALB, TPE1, TDRC, TCON, ID3NoHeaderError, TextFrame, UrlFrame, \
+    COMM, USLT
 from PIL import Image
 import os
 import requests
@@ -168,5 +169,64 @@ def delete_file(filepath):
     else:
         raise FileNotFoundError
 
+def get_meta(filepath):
+    try:
+        tags = ID3(filepath)
+    except ID3NoHeaderError:
+        return {}  # keine ID3-Tags vorhanden
 
+    out = {}
+
+    # tags.items() liefert (key, frame) z.B. ("TIT2", TIT2(...)) oder ("APIC:Cover", APIC(...))
+    for key, frame in tags.items():
+        frame_id = frame.FrameID  # z.B. "TIT2", "APIC", "COMM"
+
+        def push(value) -> None:
+            out.setdefault(frame_id, [])
+            out[frame_id].append(value)
+
+        # Text Frames (T***)
+        if isinstance(frame, TextFrame):
+            # frame.text ist meist eine Liste von Strings
+            push(list(frame.text))
+
+        # URL Frames (W***)
+        elif isinstance(frame, UrlFrame):
+            # frame.url ist ein String
+            push(frame.url)
+
+        # Comments
+        elif isinstance(frame, COMM):
+            push({
+                "lang": frame.lang,
+                "desc": frame.desc,
+                "text": list(frame.text),
+            })
+
+        # Lyrics
+        elif isinstance(frame, USLT):
+            push({
+                "lang": frame.lang,
+                "desc": frame.desc,
+                "text": frame.text,
+            })
+
+        # Attached Picture (Cover)
+        elif isinstance(frame, APIC):
+            data = frame.data or b""
+            push({
+                "mime": frame.mime,
+                "type": int(frame.type),  # 3 = front cover
+                "desc": frame.desc,
+                "size": len(data),  # Bytes
+            })
+
+        # Alles andere: fallback (gut für seltene Frames)
+        else:
+            # frame.pprint() ist lesbar, aber string-basiert
+            push(frame.pprint())
+
+    return out
+meta = get_meta('/Users/johannes/Downloads/TJ_beastboy - 300 Words In A Minute (beat by Young Kira).mp3')
+print(meta)
 #print(download_single("https://www.youtube.com/watch?v=dRpjSn0P8vw", "audio", "/Users/johannes/Downloads/"))
