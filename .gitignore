@@ -1,3 +1,5 @@
 .venv/
 .venv_pc/
 .idea/
+__pychache__/
+.DS_Store
