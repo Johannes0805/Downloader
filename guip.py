@@ -1,4 +1,4 @@
-from PyQt6.QtCore import QThread, QObject, pyqtSignal, pyqtBoundSignal
+from PyQt6.QtCore import QThread, QObject, pyqtSignal
 from PyQt6 import QtWidgets, uic, QtGui, QtCore
 from PyQt6.QtWidgets import QApplication, QMainWindow
 import sys
@@ -15,11 +15,13 @@ standard_hight = 200
 
 
 class DownloadWorker(QObject):
+    finished = pyqtSignal()
+    progress = pyqtSignal(int)
+    ready = pyqtSignal(bool)
+
     def __init__(self, link, filetype, folderpath, cookies, returnlist):
 
         super().__init__()
-        self.finished = pyqtBoundSignal()
-        self.progress = pyqtBoundSignal(int)
 
         self.link = link
         self.filetype = filetype
@@ -29,11 +31,10 @@ class DownloadWorker(QObject):
 
     def run(self):
         self.progress.emit(10)
+        self.progress.emit(20)
         self.returnlist.append(download_single(self.link, self.filetype, self.folderpath, self.cookies))
         self.progress.emit(100)
-        self.finished.emit()
-        #self.progress_view.editmeta_push.setEnabled(True)
-
+        self.ready.emit(True)
 
 class StartView(QtWidgets.QWidget):
     def __init__(self):
@@ -108,10 +109,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
     def download_v(self):
-        #def threaded_download_single(link, filetype, folderpath, cookies, returnlist):
-         #   returnlist.append(download_single(link, filetype, folderpath, cookies))
-          #  self.progress_view.editmeta_push.setEnabled(True)
-
 
         self.stack.setCurrentIndex(self.progress_view_index)
 
@@ -138,10 +135,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self.dworker.finished.connect(self.dworker.deleteLater)
             self.dthread.finished.connect(self.dthread.deleteLater)
             self.dworker.progress.connect(lambda x: self.progress_view.progressBar.setValue(x))
-
+            self.dworker.ready.connect(lambda x: self.progress_view.editmeta_push.setEnabled(x))
             self.dthread.start()
-            #t = threading.Thread(target=threaded_download_single, args=(url, filetype, folderpath, cookies, self.filepath_list))
-            #t.start()
 
     def edit_v(self):
         def threaded_download_thumbnail(link, return_list):
@@ -169,9 +164,7 @@ class MainWindow(QtWidgets.QMainWindow):
             meta = get_meta(self.filepath_list[0])
 
             self.edit_view.artist_input.setText(meta["TPE1"][0][0])
-            #self.edit_view.album_input.setText("")
             self.edit_view.rdate_input.setText(str(meta["TDRC"][0][0]))
-            #self.edit_view.genre_input.setText(meta["TPE1"][0][0])
             self.edit_view.title_input.setText(meta["TIT2"][0][0])
             self.stack.setCurrentWidget(self.edit_view)
 
