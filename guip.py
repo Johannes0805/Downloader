@@ -1,3 +1,4 @@
+from PyQt6.QtCore import QThread, QObject, pyqtSignal, pyqtBoundSignal
 from PyQt6 import QtWidgets, uic, QtGui, QtCore
 from PyQt6.QtWidgets import QApplication, QMainWindow
 import sys
@@ -12,6 +13,26 @@ starting_y = 400
 standard_width = 450
 standard_hight = 200
 
+
+class DownloadWorker(QObject):
+    def __init__(self, link, filetype, folderpath, cookies, returnlist):
+
+        super().__init__()
+        self.finished = pyqtBoundSignal()
+        self.progress = pyqtBoundSignal(int)
+
+        self.link = link
+        self.filetype = filetype
+        self.folderpath = folderpath
+        self.cookies = cookies
+        self.returnlist = returnlist
+
+    def run(self):
+        self.progress.emit(10)
+        self.returnlist.append(download_single(self.link, self.filetype, self.folderpath, self.cookies))
+        self.progress.emit(100)
+        self.finished.emit()
+        #self.progress_view.editmeta_push.setEnabled(True)
 
 
 class StartView(QtWidgets.QWidget):
@@ -87,9 +108,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
     def download_v(self):
-        def threaded_download_single(link, filetype, folderpath, cookies, returnlist):
-            returnlist.append(download_single(link, filetype, folderpath, cookies))
-            self.progress_view.editmeta_push.setEnabled(True)
+        #def threaded_download_single(link, filetype, folderpath, cookies, returnlist):
+         #   returnlist.append(download_single(link, filetype, folderpath, cookies))
+          #  self.progress_view.editmeta_push.setEnabled(True)
 
 
         self.stack.setCurrentIndex(self.progress_view_index)
@@ -107,8 +128,20 @@ class MainWindow(QtWidgets.QMainWindow):
         if not playlist:
             print("Downloading single")
 
-            t = threading.Thread(target=threaded_download_single, args=(url, filetype, folderpath, cookies, self.filepath_list))
-            t.start()
+            self.dworker = DownloadWorker(url, filetype, folderpath, cookies, self.filepath_list)
+
+            self.dthread = QThread()
+
+            self.dworker.moveToThread(self.dthread)
+            self.dthread.started.connect(self.dworker.run)
+            self.dworker.finished.connect(self.dthread.quit)
+            self.dworker.finished.connect(self.dworker.deleteLater)
+            self.dthread.finished.connect(self.dthread.deleteLater)
+            self.dworker.progress.connect(lambda x: self.progress_view.progressBar.setValue(x))
+
+            self.dthread.start()
+            #t = threading.Thread(target=threaded_download_single, args=(url, filetype, folderpath, cookies, self.filepath_list))
+            #t.start()
 
     def edit_v(self):
         def threaded_download_thumbnail(link, return_list):

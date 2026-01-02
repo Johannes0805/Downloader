@@ -227,6 +227,3 @@ def get_meta(filepath):
             push(frame.pprint())
 
     return out
-meta = get_meta('/Users/johannes/Downloads/TJ_beastboy - 300 Words In A Minute (beat by Young Kira).mp3')
-print(meta)
-#print(download_single("https://www.youtube.com/watch?v=dRpjSn0P8vw", "audio", "/Users/johannes/Downloads/"))
