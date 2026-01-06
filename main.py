@@ -18,7 +18,7 @@ def get_options(url, filetype, filepath, cookies=None):
     elif filetype == "video":
         postprocessors.append({
             "key": "FFmpegVideoConvertor",
-            "preferedformat": "h264"
+            "preferedformat": "mkv"
         })
     postprocessors.append({"key": "EmbedThumbnail"})
     postprocessors.append({"key": "FFmpegMetadata"})
@@ -78,7 +78,7 @@ def download_single(url, filetype, filepath, cookies=None):
             retries += 1
     if retries == max_retries:
         exit(1)
-    return filepath + str(ydl.extract_info(url, download=False).get("title"))+ ".mp3"
+    return filepath + str(ydl.extract_info(url, download=False).get("title"))+ (".mp3" if filetype == "audio" else "")
 
 def edit_metadata(filepath, artist=None, album=None, date=None, genre=None, title=None, playlist_index=None, thumbnail_path=None):
     try:

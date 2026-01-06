@@ -15,7 +15,7 @@ def download():
     else: print("Error")
 
     filepath = input("Where do you want to save the file? /Users/johannes/...")
-    filepath = "/Users/johannes/" + filepath + "/"
+    filepath = "/Users/johannes/Downloads" + filepath + "/"
 
     cookies = None
 
@@ -30,7 +30,7 @@ def download():
             playlist_indicator += 1
             rpath = download_single(l, filetype, filepath, cookies)
             print(f"Download successfull: {rpath}")
-            edit = input("Do you want to edit the meta data (Y/N)").upper()
+            edit = input("Do you want to edit the meta data (Y/N): ").upper()
 
             thumbpath = None
             if filetype == "audio":
@@ -49,13 +49,26 @@ def download():
     elif playlist == "S":
         filepath = download_single(url, filetype, filepath, cookies)
         print(f"Download successfull: {filepath}")
-        edit = input("Do you want to edit the meta data (Y/N)").upper()
+        edit = input("Do you want to edit the meta data (Y/N): ").upper()
 
         thumbpath = None
         if filetype == "audio":
             thumbpath = main.download_thumbnail(url)
             crop_to_square(thumbpath, thumbpath)
 
+        if filetype == "video":
+            #try:
+             #   filepath = filepath + ".mp4"
+            #except:
+             #   print("wrong filepath: .mp4, trying next one")
+
+            try:
+                filepath = filepath + ".mkv"
+            except:
+                print("wrong filepath: .mkv")
+
+            #thumbpath = main.download_thumbnail(url)
+            #crop_to_square(thumbpath, thumbpath)
 
         if edit == "Y":
             artist = input("Artist: ")

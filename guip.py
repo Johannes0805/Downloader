@@ -66,9 +66,6 @@ class ProgressView(QtWidgets.QWidget):
         super().__init__()
         uic.loadUi("progress_widget.ui", self)
 
-    def edit(self):
-        pass
-
 
 class EditView(QtWidgets.QWidget):
     def __init__(self):
@@ -94,13 +91,21 @@ class MainWindow(QtWidgets.QMainWindow):
         self.progress_view_index = self.stack.addWidget(self.progress_view)
         self.edit_view_index = self.stack.addWidget(self.edit_view)
 
+        # Verbinden der PushButtons mit den entsprechenden Funktionen
         self.start_view.start_download.clicked.connect(self.download_v)
+
         self.progress_view.editmeta_push.setEnabled(False)
+        self.progress_view.quit_push.setEnabled(False)
+        self.progress_view.repeat_push.setEnabled(False)
         self.progress_view.editmeta_push.clicked.connect(self.edit_v)
+        self.progress_view.quit_push.clicked.connect(self.save_q)
+        self.progress_view.repeat_push.clicked.connect(self.repeat_d)
+
         self.edit_view.apply_push.clicked.connect(self.edit_s)
         self.edit_view.scene = QtWidgets.QGraphicsScene(self)
         self.edit_view.graphicsView.setScene(self.edit_view.scene)
 
+    # Funktion um das Coverbild im edit_view anzuzeigen
     def show_image(self, filepath):
         pixmap = QtGui.QPixmap(filepath)
         self.edit_view.scene.clear()
@@ -123,7 +128,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Downloading using main.py
         if not playlist:
-            print("Downloading single")
 
             self.dworker = DownloadWorker(url, filetype, folderpath, cookies, self.filepath_list)
 
@@ -131,12 +135,19 @@ class MainWindow(QtWidgets.QMainWindow):
 
             self.dworker.moveToThread(self.dthread)
             self.dthread.started.connect(self.dworker.run)
+            self.dthread.finished.connect(self.dthread.quit)
             self.dworker.finished.connect(self.dthread.quit)
-            self.dworker.finished.connect(self.dworker.deleteLater)
-            self.dthread.finished.connect(self.dthread.deleteLater)
+            #self.dworker.finished.connect(self.dworker.deleteLater)
+            #self.dthread.finished.connect(self.dthread.deleteLater)
             self.dworker.progress.connect(lambda x: self.progress_view.progressBar.setValue(x))
             self.dworker.ready.connect(lambda x: self.progress_view.editmeta_push.setEnabled(x))
+            self.dworker.ready.connect(lambda x: self.progress_view.quit_push.setEnabled(x))
+            self.dworker.ready.connect(lambda x: self.progress_view.repeat_push.setEnabled(x))
+
             self.dthread.start()
+
+        else:
+            print("Still in Work")
 
     def edit_v(self):
         def threaded_download_thumbnail(link, return_list):
@@ -155,29 +166,44 @@ class MainWindow(QtWidgets.QMainWindow):
         url = self.start_view.link_input.text()
 
         thumbpath = None
-        if filetype == "audio":
+        #if filetype == "audio":
 
-            d = threading.Thread(target=threaded_download_thumbnail, args=(url, self.thumbpath_list))
-            d.start()
+        d = threading.Thread(target=threaded_download_thumbnail, args=(url, self.thumbpath_list))
+        d.start()
 
-            print(self.filepath_list[0])
-            meta = get_meta(self.filepath_list[0])
+        print(self.filepath_list[0])
+        meta = get_meta(self.filepath_list[0])
 
-            self.edit_view.artist_input.setText(meta["TPE1"][0][0])
-            self.edit_view.rdate_input.setText(str(meta["TDRC"][0][0]))
-            self.edit_view.title_input.setText(meta["TIT2"][0][0])
-            self.stack.setCurrentWidget(self.edit_view)
+        release_date = str(meta["TDRC"][0][0])
+
+        self.edit_view.artist_input.setText(meta["TPE1"][0][0])
+        #self.edit_view.rdate_input.setText(str(meta["TDRC"][0][0]))
+        self.edit_view.rday_input.setText(release_date[6:8])
+        self.edit_view.rmonth_input.setText(release_date[4:6])
+        self.edit_view.ryear_input.setText(release_date[0:4])
+        self.edit_view.title_input.setText(meta["TIT2"][0][0])
+        self.stack.setCurrentWidget(self.edit_view)
 
     def edit_s(self):
+
+        date = self.edit_view.ryear_input.text() + self.edit_view.rmonth_input.text() + self.edit_view.rday_input.text()
+
         artist = self.edit_view.artist_input.text()
         album = self.edit_view.album_input.text()
-        date = self.edit_view.rdate_input.text()
         genre = self.edit_view.genre_input.text()
         title = self.edit_view.title_input.text()
         filepath = self.filepath_list[0]
         thumbpath = self.thumbpath_list[0]
         edit_metadata(filepath,artist,album,date,genre,title,0,thumbpath)
         delete_file(thumbpath)
+        exit(0)
+
+    def repeat_d(self):
+        #delete_file(self.thumbpath_list[0])
+        self.stack.setCurrentIndex(self.start_view_index)
+
+    def save_q(self):
+        # delete_file(self.thumbpath_list[0])
         exit(0)
 
 def run():
