@@ -29,14 +29,22 @@ class DownloadWorker(QObject):
         self.cookies = cookies
         self.returnlist = returnlist
 
+
     def run(self):
+        # Updating the status bar with fake values
         self.progress.emit(10)
         self.progress.emit(20)
+
+        # Starting download and saving the filepath in returnlist
         self.returnlist.append(download_single(self.link, self.filetype, self.folderpath, self.cookies))
+
+        # Emit signal to set the status bar to finished, close the thread and worker and enable buttons
         self.progress.emit(100)
+        self.finished.emit()
         self.ready.emit(True)
 
 class StartView(QtWidgets.QWidget):
+
     def __init__(self):
         super().__init__()
         uic.loadUi("start_widget.ui", self)
@@ -52,6 +60,7 @@ class StartView(QtWidgets.QWidget):
         )
         self.filepath_input.setText(folder)
 
+    # Function to ensure that the filepath passed has a proper format
     def get_cleaned_dir(self):
         input = self.filepath_input.text()
         if input:
@@ -70,28 +79,31 @@ class ProgressView(QtWidgets.QWidget):
 class EditView(QtWidgets.QWidget):
     def __init__(self):
         super().__init__()
+        self.apply_push = None
         uic.loadUi("editmeta_widget.ui", self)
 
 
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
+        # Necessary to save the return of threads
         self.filepath_list = []
         self.thumbpath_list = []
+
         self.stack = QtWidgets.QStackedWidget()
         self.setCentralWidget(self.stack)
 
-        # Initiieren der verschiedenen Views
+        # Initiating all the Views
         self.start_view = StartView()
         self.progress_view = ProgressView()
         self.edit_view = EditView()
 
-        # Einfügen der Views auf den Stack
+        # Adding the views to the stack
         self.start_view_index = self.stack.addWidget(self.start_view)
         self.progress_view_index = self.stack.addWidget(self.progress_view)
         self.edit_view_index = self.stack.addWidget(self.edit_view)
 
-        # Verbinden der PushButtons mit den entsprechenden Funktionen
+        # Connecting buttons and setting properties
         self.start_view.start_download.clicked.connect(self.download_v)
 
         self.progress_view.editmeta_push.setEnabled(False)
@@ -101,11 +113,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.progress_view.quit_push.clicked.connect(self.save_q)
         self.progress_view.repeat_push.clicked.connect(self.repeat_d)
 
-        self.edit_view.apply_push.clicked.connect(self.edit_s)
+
+        self.edit_view.apply_push.clicked.connect(self.edit_save)
+        self.edit_view.repeat_push.clicked.connect(self.repeat_d)
         self.edit_view.scene = QtWidgets.QGraphicsScene(self)
         self.edit_view.graphicsView.setScene(self.edit_view.scene)
 
-    # Funktion um das Coverbild im edit_view anzuzeigen
+    # Function to show the cover
     def show_image(self, filepath):
         pixmap = QtGui.QPixmap(filepath)
         self.edit_view.scene.clear()
@@ -132,13 +146,17 @@ class MainWindow(QtWidgets.QMainWindow):
             self.dworker = DownloadWorker(url, filetype, folderpath, cookies, self.filepath_list)
 
             self.dthread = QThread()
+            self.dthread.setObjectName("test")
+
 
             self.dworker.moveToThread(self.dthread)
+
             self.dthread.started.connect(self.dworker.run)
-            self.dthread.finished.connect(self.dthread.quit)
+
             self.dworker.finished.connect(self.dthread.quit)
-            #self.dworker.finished.connect(self.dworker.deleteLater)
-            #self.dthread.finished.connect(self.dthread.deleteLater)
+
+            self.dworker.finished.connect(self.dworker.deleteLater)
+            self.dthread.finished.connect(self.dthread.deleteLater)
             self.dworker.progress.connect(lambda x: self.progress_view.progressBar.setValue(x))
             self.dworker.ready.connect(lambda x: self.progress_view.editmeta_push.setEnabled(x))
             self.dworker.ready.connect(lambda x: self.progress_view.quit_push.setEnabled(x))
@@ -147,6 +165,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.dthread.start()
 
         else:
+            # TODO
             print("Still in Work")
 
     def edit_v(self):
@@ -162,11 +181,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setGeometry(starting_x-100,starting_y-75,standard_width + 200,standard_hight + 150)
         self.stack.setCurrentIndex(self.edit_view_index)
 
-        filetype = "audio" if self.start_view.audio_checkbox.isChecked() else "video"
         url = self.start_view.link_input.text()
 
         thumbpath = None
-        #if filetype == "audio":
 
         d = threading.Thread(target=threaded_download_thumbnail, args=(url, self.thumbpath_list))
         d.start()
@@ -182,9 +199,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.edit_view.rmonth_input.setText(release_date[4:6])
         self.edit_view.ryear_input.setText(release_date[0:4])
         self.edit_view.title_input.setText(meta["TIT2"][0][0])
-        self.stack.setCurrentWidget(self.edit_view)
+        #self.stack.setCurrentWidget(self.edit_view)
 
-    def edit_s(self):
+    # Function called to save the changes made in edit_view
+    def edit_save(self):
 
         date = self.edit_view.ryear_input.text() + self.edit_view.rmonth_input.text() + self.edit_view.rday_input.text()
 
@@ -194,12 +212,31 @@ class MainWindow(QtWidgets.QMainWindow):
         title = self.edit_view.title_input.text()
         filepath = self.filepath_list[0]
         thumbpath = self.thumbpath_list[0]
+
         edit_metadata(filepath,artist,album,date,genre,title,0,thumbpath)
+
         delete_file(thumbpath)
         exit(0)
 
     def repeat_d(self):
+        # Reset all buttons and lists for the next run
+        def cleanup():
+            self.start_view.single_radio.setChecked(False)
+            self.start_view.playlist_radio.setChecked(False)
+            self.start_view.audio_checkbox.setChecked(False)
+            self.start_view.link_input.setText("")
+
+            self.progress_view.editmeta_push.setEnabled(False)
+            self.progress_view.quit_push.setEnabled(False)
+            self.progress_view.repeat_push.setEnabled(False)
+
+            self.filepath_list.clear()
+            self.thumbpath_list.clear()
+
         #delete_file(self.thumbpath_list[0])
+
+        cleanup()
+
         self.stack.setCurrentIndex(self.start_view_index)
 
     def save_q(self):
