@@ -151,7 +151,7 @@
         </widget>
        </item>
        <item>
-        <widget class="QGraphicsView" name="cover_view">
+        <widget class="QGraphicsView" name="graphicsView">
          <property name="sizePolicy">
           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
            <horstretch>0</horstretch>
