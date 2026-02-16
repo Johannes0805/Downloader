@@ -28,9 +28,6 @@ class DownloadWorker(QObject):
         self.folderpath = folderpath
         self.cookies = cookies
         self.returnlist = returnlist
-        #self.playlist = playlist
-
-
 
     def run(self):
 
@@ -42,6 +39,7 @@ class DownloadWorker(QObject):
             self.returnlist.append(download_single(l, self.filetype, self.folderpath, self.cookies))
             # Updating progress bar
             self.progress.emit(int((counter/len(self.linklist)) * 100))
+            print(self.returnlist)
 
         # Emit signal to set the status bar to finished, close the thread and worker and enable buttons
         self.progress.emit(100)
@@ -101,6 +99,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.filepath_list = []
         self.thumbpath_list = []
         self.playlist_index = 0
+        self.folderpath_base = ""
+        self.filepath = ""
 
         self.thumbnail_ready.connect(self.show_image)
 
@@ -129,9 +129,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.progress_view.quit_push.clicked.connect(self.save_q)
 
-
         self.progress_view.editmeta_push.clicked.connect(self.edit_v)
-
         self.progress_view.repeat_push.clicked.connect(self.repeat_d)
 
 
@@ -148,7 +146,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.bulk_edit_view.save_push.clicked.connect(self.bulk_save_quit)
 
         self.thumbnail_loaded.connect(self.update_bulk_edit_buttons)
-        #self.thumbnail_loaded.connect(self.bulk_edit_view.previous_push.setEnabled)
     # Function to show the cover
     def show_image(self, filepath, view):
         pixmap = QtGui.QPixmap(filepath)
@@ -165,18 +162,27 @@ class MainWindow(QtWidgets.QMainWindow):
         playlist = self.start_view.playlist_radio.isChecked()
         filetype = "audio" if self.start_view.audio_checkbox.isChecked() else "video"
 
-        folderpath = self.start_view.get_cleaned_dir()
+
         cookies = None  # TODO
 
         if playlist:
             self.linklist = get_playlist(self.start_view.link_input.text())
             self.bulk_edit_view.previous_push.setEnabled(False)
+            self.folderpath_base = self.start_view.get_cleaned_dir()
+            self.filepath = self.folderpath_base + "temp"
+
+            if not os.path.exists(self.filepath):
+                os.mkdir(self.filepath)
+
+            self.filepath = self.filepath + "/"
+
         else:
+            self.filepath = self.start_view.get_cleaned_dir()
             self.linklist = [self.start_view.link_input.text()]
 
         # Downloading using main.py
 
-        self.dworker = DownloadWorker(self.linklist, filetype, folderpath, cookies, self.filepath_list, playlist)
+        self.dworker = DownloadWorker(self.linklist, filetype, self.filepath, cookies, self.filepath_list, playlist)
 
         self.dthread = QThread()
         self.dthread.setObjectName("test")
@@ -238,6 +244,7 @@ class MainWindow(QtWidgets.QMainWindow):
             d = threading.Thread(target=self.threaded_download_thumbnail, args=(self.linklist, self.thumbpath_list, playlist))
             d.start()
             self.update_bulk_edit_buttons(True)
+
         else:
             self.stack.setCurrentIndex(self.edit_view_index)
 
@@ -288,10 +295,6 @@ class MainWindow(QtWidgets.QMainWindow):
         save(save_index)
 
         self.playlist_index += 1
-
-        print(f"linklist: {self.linklist}")
-        print(f"Länge Linklist:{len(self.linklist)}")
-        print("save_index:" + str(save_index))
 
         self.update_bulk_edit_buttons(True)
 
@@ -350,6 +353,8 @@ class MainWindow(QtWidgets.QMainWindow):
         thumbpath = self.thumbpath_list[self.playlist_index]
 
         edit_metadata(filepath, artist, album, date, genre, title, self.playlist_index + 1, thumbpath)
+
+        os.rename(self.filepath, self.folderpath_base + "/" + album)
 
         delete_file(thumbpath)
         exit(0)
