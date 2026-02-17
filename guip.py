@@ -417,7 +417,7 @@ def run():
 
     win.setGeometry(starting_x,starting_y,standard_width,standard_hight)
     win.setWindowTitle("Downloader")
-    icon = QtGui.QIcon("icon_downloader.png")
+    icon = QtGui.QIcon("yt_downloader.icns")
     win.setWindowIcon(icon)
 
     win.show()
