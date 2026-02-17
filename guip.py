@@ -1,11 +1,8 @@
-from PyQt6.QtCore import QThread, QObject, pyqtSignal
 from PyQt6 import QtWidgets, uic, QtGui, QtCore
+from PyQt6.QtCore import QThread, QObject, pyqtSignal
 from PyQt6.QtWidgets import QApplication, QMainWindow
-import sys
-
+import sys, json, threading
 from main import *
-
-import threading
 
 starting_x = 500
 starting_y = 400
@@ -137,13 +134,23 @@ class MainWindow(QtWidgets.QMainWindow):
         self.edit_view.repeat_push.clicked.connect(self.repeat_d)
         self.edit_view.scene = QtWidgets.QGraphicsScene(self)
         self.edit_view.graphicsView.setScene(self.edit_view.scene)
-
+        self.edit_view.genre_input.setMaxVisibleItems(4)
 
         self.bulk_edit_view.scene = QtWidgets.QGraphicsScene(self)
         self.bulk_edit_view.graphicsView.setScene(self.bulk_edit_view.scene)
         self.bulk_edit_view.previous_push.clicked.connect(self.edit_prev)
         self.bulk_edit_view.next_push.clicked.connect(self.edit_next)
         self.bulk_edit_view.save_push.clicked.connect(self.bulk_save_quit)
+        self.bulk_edit_view.genre_input.setMaxVisibleItems(4)
+
+        try:
+            with open("music_genres.json", "r") as genre_file:
+                data = json.load(genre_file)
+                print(data)
+                self.bulk_edit_view.genre_input.addItems(data["genres"])
+                self.edit_view.genre_input.addItems(data["genres"])
+        except FileNotFoundError:
+            print("Oops, looks like the genre file doesn´t exist")
 
         self.thumbnail_loaded.connect(self.update_bulk_edit_buttons)
     # Function to show the cover
@@ -286,7 +293,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
             artist = self.bulk_edit_view.artist_input.text()
             album = self.bulk_edit_view.albumtitle_input.text()
-            genre = self.bulk_edit_view.genre_input.text()
+            genre = str(self.bulk_edit_view.genre_input.currentText())
             title = self.bulk_edit_view.songtitle_input.text()
 
             self.bulk_save(save_index, date, artist, genre, title, album)
@@ -314,7 +321,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
             artist = self.bulk_edit_view.artist_input.text()
             album = self.bulk_edit_view.albumtitle_input.text()
-            genre = self.bulk_edit_view.genre_input.text()
+
+            genre = str(self.bulk_edit_view.genre_input.currentText())
             title = self.bulk_edit_view.songtitle_input.text()
 
             self.bulk_save(save_index, date, artist, genre, title, album)
@@ -347,7 +355,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         artist = self.bulk_edit_view.artist_input.text()
         album = self.bulk_edit_view.albumtitle_input.text()
-        genre = self.bulk_edit_view.genre_input.text()
+        genre = str(self.bulk_edit_view.genre_input.currentText())
         title = self.bulk_edit_view.songtitle_input.text()
         filepath = self.filepath_list[self.playlist_index]
         thumbpath = self.thumbpath_list[self.playlist_index]
@@ -366,7 +374,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
         artist = self.edit_view.artist_input.text()
         album = self.edit_view.album_input.text()
-        genre = self.edit_view.genre_input.text()
+
+        genre = str(self.edit_view.genre_input.currentText())
+
         title = self.edit_view.title_input.text()
         filepath = self.filepath_list[0]
         thumbpath = self.thumbpath_list[0]

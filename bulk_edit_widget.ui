@@ -67,7 +67,13 @@
           </widget>
          </item>
          <item>
-          <widget class="QLineEdit" name="genre_input">
+          <widget class="QComboBox" name="genre_input">
+           <property name="editable">
+            <bool>true</bool>
+           </property>
+           <property name="maxVisibleItems">
+            <number>5</number>
+           </property>
            <property name="placeholderText">
             <string>genre</string>
            </property>
