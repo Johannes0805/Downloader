@@ -1,5 +1,5 @@
-import main
-from main import download_single, crop_to_square
+import backend
+from backend import download_single, crop_to_square
 
 
 def download():
@@ -34,7 +34,7 @@ def download():
 
             thumbpath = None
             if filetype == "audio":
-                thumbpath = main.download_thumbnail(l)
+                thumbpath = backend.download_thumbnail(l)
                 crop_to_square(thumbpath, thumbpath)
 
             if edit == "Y":
@@ -53,7 +53,7 @@ def download():
 
         thumbpath = None
         if filetype == "audio":
-            thumbpath = main.download_thumbnail(url)
+            thumbpath = backend.download_thumbnail(url)
             crop_to_square(thumbpath, thumbpath)
 
         if filetype == "video":
@@ -79,6 +79,6 @@ def download():
             main.edit_metadata(filepath, artist, album, date, genre, title, 1, thumbnail_path=thumbpath)
 
         if filetype == "audio":
-            main.delete_file(thumbpath)
+            backend.delete_file(thumbpath)
 
 download()
