@@ -3,6 +3,16 @@ from PyQt6.QtWidgets import QApplication
 from PyQt6 import QtGui
 from gui import MainWindow
 from utils import resource_path
+
+import sys
+import traceback
+
+def excepthook(type, value, tb):
+    with open("/Users/johannes/Desktop/qt_crash_log.txt", "w") as f:
+        traceback.print_exception(type, value, tb, file=f)
+
+sys.excepthook = excepthook
+
 starting_x = 500
 starting_y = 400
 

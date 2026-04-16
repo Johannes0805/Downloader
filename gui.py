@@ -4,6 +4,7 @@ from PyQt6.QtWidgets import QApplication
 import sys, json, threading
 from backend import *
 from utils import *
+from PyQt6.QtWidgets import QMessageBox
 
 starting_x = 500
 starting_y = 400
@@ -15,6 +16,7 @@ class DownloadWorker(QObject):
     finished = pyqtSignal()
     progress = pyqtSignal(int)
     ready = pyqtSignal(bool)
+    error = pyqtSignal(str)
 
     def __init__(self, linklist, filetype, folderpath, cookies, returnlist, playlist):
 
@@ -27,21 +29,64 @@ class DownloadWorker(QObject):
         self.returnlist = returnlist
 
     def run(self):
+        try:
+            self.progress.emit(0)
 
-        self.progress.emit(0)
+            counter = 0
+            for l in self.linklist:
+                counter += 1
+                self.returnlist.append(download_single(l, self.filetype, self.folderpath, self.cookies))
+                # Updating progress bar
+                self.progress.emit(int((counter/len(self.linklist)) * 100))
 
-        counter = 0
-        for l in self.linklist:
-            counter += 1
-            self.returnlist.append(download_single(l, self.filetype, self.folderpath, self.cookies))
-            # Updating progress bar
-            self.progress.emit(int((counter/len(self.linklist)) * 100))
-            #print(self.returnlist)
 
-        # Emit signal to set the status bar to finished, close the thread and worker and enable buttons
-        self.progress.emit(100)
-        self.finished.emit()
-        self.ready.emit(True)
+            # Emit signal to set the status bar to finished, close the thread and worker and enable buttons
+            self.progress.emit(100)
+            self.finished.emit()
+            self.ready.emit(True)
+
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            self.error.emit(str(e))
+        finally:
+            self.finished.emit()
+
+class ThumbnailWorker(QObject):
+    finished = pyqtSignal()
+    thumbnail_loaded = pyqtSignal(bool)
+    thumbnail_ready = pyqtSignal(str, object)
+
+    def __init__(self, linklist, return_list, playlist_index, playlist, edit_view, bulk_edit_view, filepath_base):
+        super().__init__()
+
+        self.linklist = linklist
+        self.playlist = playlist
+        self.returnlist = return_list
+        self.playlist_index = playlist_index
+        self.filepath_base = filepath_base
+
+        self.edit_view = edit_view
+        self.bulk_edit_view = bulk_edit_view
+
+    def run(self):
+
+        self.thumbnail_loaded.emit(False)
+
+        temp = download_thumbnail(self.linklist[self.playlist_index], self.filepath_base)
+        crop_to_square(temp)
+        self.returnlist.append(temp)
+
+        if self.playlist:
+            self.thumbnail_ready.emit(temp, self.bulk_edit_view)
+            #print(self.returnlist[self.playlist_index], self.edit_view)
+            self.thumbnail_loaded.emit(True)
+            self.finished.emit()
+        else:
+            self.thumbnail_ready.emit(temp, self.edit_view)
+            self.finished.emit()
+            #print(self.returnlist[self.playlist_index], self.edit_view)
+            #self.show_image(self.returnlist[self.playlist_index], self.edit_view)
 
 class StartView(QtWidgets.QWidget):
 
@@ -89,6 +134,7 @@ class BulkEditView(QtWidgets.QWidget):
 class MainWindow(QtWidgets.QMainWindow):
     thumbnail_ready = pyqtSignal(str, object)
     thumbnail_loaded = pyqtSignal(bool)
+
     def __init__(self):
         super().__init__()
         # Necessary to save the return of threads
@@ -98,9 +144,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.playlist_index = 0
         self.folderpath_base = ""
         self.filepath = ""
-
-        self.thumbnail_ready.connect(self.show_image)
-
 
         self.stack = QtWidgets.QStackedWidget()
         self.setCentralWidget(self.stack)
@@ -152,7 +195,19 @@ class MainWindow(QtWidgets.QMainWindow):
         except FileNotFoundError:
             print("Oops, looks like the genre file doesn´t exist")
 
-        self.thumbnail_loaded.connect(self.update_bulk_edit_buttons)
+
+        #self.thumbnail_loaded.connect(self.update_bulk_edit_buttons)
+
+        #self.thumbnail_ready.connect(self.show_image)
+
+    def show_error_dialog(self, message: str):
+        msg = QMessageBox(self)
+        msg.setIcon(QMessageBox.Icon.Critical)
+        msg.setWindowTitle("Download Error")
+        msg.setText("Der Download ist fehlgeschlagen.")
+        msg.setInformativeText(message)
+        msg.exec()
+
     # Function to show the cover
     def show_image(self, filepath, view):
         pixmap = QtGui.QPixmap(filepath)
@@ -192,8 +247,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.dworker = DownloadWorker(self.linklist, filetype, self.filepath, cookies, self.filepath_list, playlist)
 
         self.dthread = QThread()
-        self.dthread.setObjectName("test")
-
+        self.dthread.setObjectName("download_thread")
 
         self.dworker.moveToThread(self.dthread)
 
@@ -201,19 +255,41 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.dworker.finished.connect(self.dthread.quit)
 
-        self.dworker.finished.connect(self.dworker.deleteLater)
+        self.dthread.finished.connect(self.dworker.deleteLater)
         self.dthread.finished.connect(self.dthread.deleteLater)
         self.dworker.progress.connect(lambda x: self.progress_view.progressBar.setValue(x))
         self.dworker.ready.connect(lambda x: self.progress_view.editmeta_push.setEnabled(x))
         self.dworker.ready.connect(lambda x: self.progress_view.quit_push.setEnabled(x))
         self.dworker.ready.connect(lambda x: self.progress_view.repeat_push.setEnabled(x))
 
+        self.dworker.error.connect(self.show_error_dialog)
+
         self.dthread.start()
 
-    def threaded_download_thumbnail(self, linklist, return_list, playlist):
+    def download_t(self, linklist, return_list, playlist):
+
+        self.tworker = ThumbnailWorker(self.linklist, self.thumbpath_list, self.playlist_index, playlist, self.edit_view, self.bulk_edit_view, self.filepath)
+
+        self.tthread = QThread()
+
+        self.tworker.moveToThread(self.tthread)
+
+        self.tthread.started.connect(self.tworker.run)
+
+        self.tworker.finished.connect(self.tthread.quit)
+
+        self.tworker.finished.connect(self.tworker.deleteLater)
+        self.tthread.finished.connect(self.tthread.deleteLater)
+
+        self.tworker.thumbnail_loaded.connect(self.update_bulk_edit_buttons)
+        self.tworker.thumbnail_ready.connect(lambda x, y: self.show_image(x,y))
+
+        self.tthread.start()
+
+    """def threaded_download_thumbnail(self, linklist, return_list, playlist):
         self.thumbnail_loaded.emit(False)
-        print(linklist)
-        print(self.playlist_index)
+        #print(linklist)
+        #print(self.playlist_index)
         temp = download_thumbnail(linklist[self.playlist_index])
         crop_to_square(temp)
         return_list.append(temp)
@@ -224,6 +300,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.thumbnail_loaded.emit(True)
         else:
             self.show_image(return_list[self.playlist_index], self.edit_view)
+    """
 
     def edit_v(self):
 
@@ -248,8 +325,11 @@ class MainWindow(QtWidgets.QMainWindow):
 
             #thumbpath = None
 
-            d = threading.Thread(target=self.threaded_download_thumbnail, args=(self.linklist, self.thumbpath_list, playlist))
-            d.start()
+            #d = threading.Thread(target=self.threaded_download_thumbnail, args=(self.linklist, self.thumbpath_list, playlist))
+            #d.start()
+
+            self.download_t(self.linklist, self.thumbpath_list, playlist)
+
             self.update_bulk_edit_buttons(True)
 
         else:
@@ -257,8 +337,10 @@ class MainWindow(QtWidgets.QMainWindow):
 
             thumbpath = None
 
-            d = threading.Thread(target=self.threaded_download_thumbnail, args=(self.linklist, self.thumbpath_list, playlist))
-            d.start()
+            #d = threading.Thread(target=self.threaded_download_thumbnail, args=(self.linklist, self.thumbpath_list, playlist))
+            #d.start()
+
+            self.download_t(self.linklist, self.thumbpath_list, playlist)
 
             print(self.filepath_list[0])
             meta = get_meta(self.filepath_list[0])
@@ -311,8 +393,10 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.bulk_edit_view.songtitle_input.setText(meta["TIT2"][0][0])
 
-        d = threading.Thread(target=self.threaded_download_thumbnail, args=(self.linklist, self.thumbpath_list, True))
-        d.start()
+        #d = threading.Thread(target=self.threaded_download_thumbnail, args=(self.linklist, self.thumbpath_list, True))
+        #d.start()
+
+        self.download_t(self.linklist, self.thumbpath_list, True)
 
     def edit_prev(self):
 
@@ -339,8 +423,10 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.bulk_edit_view.songtitle_input.setText(meta["TIT2"][0][0])
 
-        d = threading.Thread(target=self.threaded_download_thumbnail, args=(self.linklist, self.thumbpath_list, True))
-        d.start()
+        #d = threading.Thread(target=self.threaded_download_thumbnail, args=(self.linklist, self.thumbpath_list, True))
+        #d.start()
+
+        self.download_t(self.linklist, self.thumbpath_list, True)
 
     def bulk_save(self, save_index, date, artist, genre, title, album):
         filepath = self.filepath_list[save_index]
@@ -362,10 +448,11 @@ class MainWindow(QtWidgets.QMainWindow):
 
         edit_metadata(filepath, artist, album, date, genre, title, self.playlist_index + 1, thumbpath)
 
+        delete_file(thumbpath)  # vlt vor rename
+
         os.rename(self.filepath, self.folderpath_base + "/" + album)
 
-        delete_file(thumbpath)
-        exit(0)
+        self.close()
 
     # Function called to save the changes made in edit_view
     def edit_save(self):
@@ -384,7 +471,7 @@ class MainWindow(QtWidgets.QMainWindow):
         edit_metadata(filepath,artist,album,date,genre,title,0,thumbpath)
 
         delete_file(thumbpath)
-        exit(0)
+        self.close()
 
     def repeat_d(self):
         # Reset all buttons and lists for the next run
@@ -409,4 +496,4 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def save_q(self):
         # delete_file(self.thumbpath_list[0])
-        exit(0)
+        self.close()

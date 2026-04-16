@@ -1,9 +1,7 @@
-import yt_dlp
 from mutagen.id3 import ID3, error, TIT2, TRCK, APIC, TALB, TPE1, TDRC, TCON, ID3NoHeaderError, TextFrame, UrlFrame, \
     COMM, USLT
 from PIL import Image
-import os
-import requests
+import os, sys, requests, yt_dlp
 
 def get_options(url, filetype, filepath, cookies=None):
     yt = yt_dlp.YoutubeDL()
@@ -31,15 +29,34 @@ def get_options(url, filetype, filepath, cookies=None):
     else:
         raise ValueError(f"Can only give options for video or audio download; Given: {filetype}")
 
-    return {
-        "format": dlformat,
-        "cookiefile": "/Users/johannes/Downloads/www.youtube.com_cookies.txt",
-        "outtmpl": filepath + "%(title)s.%(ext)s",
-        "noplaylist": True,
-        "writethumbnail": True,
-        "extractor_args": {"youtube": {"player_client": ["default", "-tv_simply"]}},
-        "postprocessors": postprocessors
-    }
+    # Source - https://stackoverflow.com/a/71851772
+    # Posted by AdamEshem, modified by community. See post 'Timeline' for change history
+    # Retrieved 2026-04-05, License - CC BY-SA 4.0
+
+    if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+        # Returns options if run as the app
+        return {
+            "format": dlformat,
+            "cookiefile": "/Users/johannes/Downloads/www.youtube.com_cookies.txt",
+            "outtmpl": filepath + "%(title)s.%(ext)s",
+            "noplaylist": True,
+            "writethumbnail": True,
+            "extractor_args": {"youtube": {"player_client": ["default", "-tv_simply"]}},
+            "postprocessors": postprocessors,
+            "ffmpeg_location": "/".join(os.path.abspath(__file__).split("/")[0:-2]) + "/Frameworks/ffstuff",
+            "no_warnings": True
+        }
+    else:
+        # Return options if run in IDE
+        return {
+            "format": dlformat,
+            "cookiefile": "/Users/johannes/Downloads/www.youtube.com_cookies.txt",
+            "outtmpl": filepath + "%(title)s.%(ext)s",
+            "noplaylist": True,
+            "writethumbnail": True,
+            "extractor_args": {"youtube": {"player_client": ["default", "-tv_simply"]}},
+            "postprocessors": postprocessors,
+        }
 
 def get_best_stream(info, filetype):
     def video_sort_helper(x):
@@ -52,7 +69,6 @@ def get_best_stream(info, filetype):
             return x.get("abr")
         else:
             return 0
-
     if filetype == "audio":
         audio_streams = [f for f in info["formats"] if f["acodec"] != "none" ] #and str(f.get("format_note", "")).find("original")+1
         audio_streams.sort(key=audio_sort_helper, reverse=True)
@@ -65,6 +81,14 @@ def get_best_stream(info, filetype):
         raise ValueError(f"Can only extract best video or audio streams; Given: {filetype}")
 
 def download_single(url, filetype, filepath, cookies=None):
+    import os
+    print("PATH =", os.environ.get("PATH"))
+    print("CWD =", os.getcwd())
+    print("__FILE__", os.path.abspath(__file__))
+    path = "/".join(os.path.abspath(__file__).split("/")[0:-2]) + "/Frameworks/ffstuff"
+    print("FFMPEG PATH:", path)
+    print("EXISTS:", os.path.exists(path))
+
     ydl = yt_dlp.YoutubeDL(get_options(url, filetype, filepath, cookies))
     max_retries = 10
     retries = 0
@@ -77,7 +101,7 @@ def download_single(url, filetype, filepath, cookies=None):
             print(e)
             retries += 1
     if retries == max_retries:
-        exit(1)
+        raise RuntimeError("Download failed after maximum retries")
     return filepath + str(ydl.extract_info(url, download=False).get("title"))+ (".mp3" if filetype == "audio" else "")
 
 def edit_metadata(filepath, artist=None, album=None, date=None, genre=None, title=None, playlist_index=None, thumbnail_path=None):
@@ -115,9 +139,6 @@ def edit_metadata(filepath, artist=None, album=None, date=None, genre=None, titl
 
     media.save(filepath)
 def get_playlist(url):
-    """
-    :return: list of links to every video in the playlist
-    """
     yt = yt_dlp.YoutubeDL()
     info = yt.extract_info(url, download=False)
     entries = [f.get("original_url") for f in info["entries"]]
@@ -148,19 +169,21 @@ def crop_to_square(filepath, output_path=None, scale:str=None):
         else:
             img_resized.save(filepath, "JPEG")
 
-def download_thumbnail(url):
+def download_thumbnail(url, base_dir):
+    print("downloading_thumbnail started")
     yt = yt_dlp.YoutubeDL()
     info = yt.extract_info(url, download=False)
     # getting the thumbnail url
     thumb_url = info.get("thumbnail")
 
-    thumbnail_path =  str(info.get("title")) + ".jpg"
-
+    #thumbnail_path =  str(info.get("title")) + ".jpg"
+    filename = str(info.get("title")) + ".jpg"
+    thumbnail_path = os.path.join(base_dir, filename)
     # downloading and writing the thumbnail
     r = requests.get(thumb_url)
     with open(thumbnail_path, "wb") as f:
         f.write(r.content)
-
+    print(f"Thumbnail downloaded to {thumbnail_path}")
     return thumbnail_path
 
 def delete_file(filepath):
